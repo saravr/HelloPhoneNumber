@@ -15,7 +15,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +22,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,8 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.i18n.phonenumbers.PhoneNumberUtil
-import kotlin.code
-import kotlin.text.format
 
 data class Country(
     val name: String,
@@ -66,7 +65,6 @@ fun PhoneNumberInput(
     var selectedCountry by remember { mutableStateOf(getDefaultCountry()) }
     var phoneNumber by remember { mutableStateOf("") }
     var isValid by remember { mutableStateOf(false) }
-    var e164Format by remember { mutableStateOf("") }
     var showCountryPicker by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
@@ -89,7 +87,6 @@ fun PhoneNumberInput(
             onPhoneNumberChange = { newNumber, valid, e164 ->
                 phoneNumber = newNumber
                 isValid = valid
-                e164Format = e164
                 onPhoneNumberChange(newNumber, valid, e164)
             },
             modifier = Modifier.fillMaxWidth()
@@ -112,7 +109,6 @@ fun PhoneNumberInput(
                 selectedCountry = country
                 phoneNumber = ""
                 isValid = false
-                e164Format = ""
                 showCountryPicker = false
             },
             onDismiss = { showCountryPicker = false }
@@ -139,14 +135,14 @@ fun PhoneNumberTextField(
             val parsed = phoneUtil.parse(digits, countryCode)
             isValid = phoneUtil.isValidNumber(parsed)
             e164Format = phoneUtil.format(parsed, PhoneNumberUtil.PhoneNumberFormat.E164)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             isValid = false
             e164Format = ""
         }
         onPhoneNumberChange(digits, isValid, e164Format)
     }
 
-    OutlinedTextField(
+    TextField(
         value = phoneNumber,
         onValueChange = { newValue ->
             val digits = newValue.filter { it.isDigit() }.take(maxDigits)
@@ -154,14 +150,24 @@ fun PhoneNumberTextField(
                 val parsed = phoneUtil.parse(digits, countryCode)
                 isValid = phoneUtil.isValidNumber(parsed)
                 e164Format = phoneUtil.format(parsed, PhoneNumberUtil.PhoneNumberFormat.E164)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 isValid = false
                 e164Format = ""
             }
             onPhoneNumberChange(digits, isValid, e164Format)
         },
         modifier = modifier,
-        label = { Text("Phone Number") },
+        colors = TextFieldDefaults.colors(
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            errorIndicatorColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
+            errorContainerColor = Color.Transparent,
+        ),
+//        label = { Text("Phone Number") },
         placeholder = { Text(getPhoneNumberPlaceholder(countryCode)) },
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Phone,
@@ -175,9 +181,9 @@ fun PhoneNumberTextField(
                 null
             }
         },
-        leadingIcon = {
-            Icon(Icons.Default.Phone, contentDescription = null)
-        },
+//        leadingIcon = {
+//            Icon(Icons.Default.Phone, contentDescription = null)
+//        },
         trailingIcon = {
             if (phoneNumber.isNotEmpty()) {
                 Icon(
