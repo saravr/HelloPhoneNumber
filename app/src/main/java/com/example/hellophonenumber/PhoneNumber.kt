@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.i18n.phonenumbers.PhoneNumberUtil
+import kotlin.code
+import kotlin.text.format
 
 data class Country(
     val name: String,
@@ -62,12 +66,10 @@ fun PhoneNumberInput(
     var selectedCountry by remember { mutableStateOf(getDefaultCountry()) }
     var phoneNumber by remember { mutableStateOf("") }
     var isValid by remember { mutableStateOf(false) }
+    var e164Format by remember { mutableStateOf("") }
     var showCountryPicker by remember { mutableStateOf(false) }
 
-    val phoneUtil = remember { PhoneNumberUtil.getInstance() }
-
     Column(modifier = modifier) {
-        // Country Code Selector
         OutlinedButton(
             onClick = { showCountryPicker = true },
             modifier = Modifier.fillMaxWidth()
@@ -81,29 +83,18 @@ fun PhoneNumberInput(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Phone Number Field
         PhoneNumberTextField(
             phoneNumber = phoneNumber,
             countryCode = selectedCountry.code,
-            onPhoneNumberChange = { newNumber ->
+            onPhoneNumberChange = { newNumber, valid, e164 ->
                 phoneNumber = newNumber
-
-                // Validate and format
-                try {
-                    val parsedNumber = phoneUtil.parse(newNumber, selectedCountry.code)
-                    isValid = phoneUtil.isValidNumber(parsedNumber)
-                    val e164 = phoneUtil.format(parsedNumber, PhoneNumberUtil.PhoneNumberFormat.E164)
-                    onPhoneNumberChange(newNumber, isValid, e164)
-                } catch (e: Exception) {
-                    isValid = false
-                    onPhoneNumberChange(newNumber, false, "")
-                }
+                isValid = valid
+                e164Format = e164
+                onPhoneNumberChange(newNumber, valid, e164)
             },
-            isValid = isValid,
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Validation indicator
         if (phoneNumber.isNotEmpty()) {
             Text(
                 text = if (isValid) "✓ Valid phone number" else "✗ Invalid phone number",
@@ -114,13 +105,14 @@ fun PhoneNumberInput(
         }
     }
 
-    // Country Picker Dialog
     if (showCountryPicker) {
         CountryPickerDialog(
             countries = getAllCountries(),
             onCountrySelected = { country ->
                 selectedCountry = country
-                phoneNumber = "" // Reset phone number when country changes
+                phoneNumber = ""
+                isValid = false
+                e164Format = ""
                 showCountryPicker = false
             },
             onDismiss = { showCountryPicker = false }
@@ -128,21 +120,45 @@ fun PhoneNumberInput(
     }
 }
 
-
 @Composable
 fun PhoneNumberTextField(
     phoneNumber: String,
     countryCode: String,
-    onPhoneNumberChange: (String) -> Unit,
-    isValid: Boolean,
+    onPhoneNumberChange: (String, Boolean, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val maxDigits = getMaxPhoneDigitsFromLib(countryCode)
+    val phoneUtil = PhoneNumberUtil.getInstance()
+    var isValid by remember { mutableStateOf(false) }
+    var e164Format by remember { mutableStateOf("") }
+
+    // Re-validate when phoneNumber or countryCode changes
+    LaunchedEffect(phoneNumber, countryCode) {
+        val digits = phoneNumber.filter { it.isDigit() }.take(maxDigits)
+        try {
+            val parsed = phoneUtil.parse(digits, countryCode)
+            isValid = phoneUtil.isValidNumber(parsed)
+            e164Format = phoneUtil.format(parsed, PhoneNumberUtil.PhoneNumberFormat.E164)
+        } catch (e: Exception) {
+            isValid = false
+            e164Format = ""
+        }
+        onPhoneNumberChange(digits, isValid, e164Format)
+    }
+
     OutlinedTextField(
         value = phoneNumber,
         onValueChange = { newValue ->
             val digits = newValue.filter { it.isDigit() }.take(maxDigits)
-            onPhoneNumberChange(digits)
+            try {
+                val parsed = phoneUtil.parse(digits, countryCode)
+                isValid = phoneUtil.isValidNumber(parsed)
+                e164Format = phoneUtil.format(parsed, PhoneNumberUtil.PhoneNumberFormat.E164)
+            } catch (e: Exception) {
+                isValid = false
+                e164Format = ""
+            }
+            onPhoneNumberChange(digits, isValid, e164Format)
         },
         modifier = modifier,
         label = { Text("Phone Number") },
@@ -155,6 +171,8 @@ fun PhoneNumberTextField(
         supportingText = {
             if (phoneNumber.isNotEmpty() && !isValid) {
                 Text("Enter a valid phone number")
+            } else {
+                null
             }
         },
         leadingIcon = {
@@ -163,10 +181,9 @@ fun PhoneNumberTextField(
         trailingIcon = {
             if (phoneNumber.isNotEmpty()) {
                 Icon(
-                    imageVector = Icons.Default.Search, // Replace with Icons.Default.Close if available
+                    imageVector = Icons.Default.Clear,
                     contentDescription = "Clear",
-                    modifier = Modifier
-                        .clickable { onPhoneNumberChange("") }
+                    modifier = Modifier.clickable { onPhoneNumberChange("", false, "") }
                 )
             }
         },
